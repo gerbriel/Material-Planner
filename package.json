@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-  "test": "vitest",
-  "e2e": "playwright test"
+    "preview": "vite preview --port 4173",
+    "test": "vitest",
+    "e2e": "playwright test"
   },
   "vitest": {
     "setupFiles": [
