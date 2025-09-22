@@ -25,6 +25,7 @@ import StepOpenings from './components/forms/StepOpenings'
 import StepReview from './components/forms/StepReview'
 import ThemeFab from './components/layout/ThemeFab'
 import { jobSchema } from './state/schema'
+import DocumentHead from './components/layout/DocumentHead'
 
 const steps = [
   { id: 1, title: 'Building' },
@@ -157,6 +158,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-fg">
+      <DocumentHead
+        title={(() => {
+          const base = 'Material Planner'
+          if (step === 1) return `${base} — Building`
+          if (step === 2) return `${base} — Review`
+          return base
+        })()}
+        faviconHref="/favicon.svg"
+      />
       <Topbar />
       <JobAutosave />
 

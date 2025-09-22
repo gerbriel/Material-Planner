@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Transparent background; icon strokes use primary blue -->
+  <g fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Clipboard body -->
+    <rect x="12" y="14" width="40" height="44" rx="6"/>
+    <!-- Clipboard clip/top -->
+    <path d="M24 12h16a4 4 0 0 1 4 4v2H20v-2a4 4 0 0 1 4-4z" fill="none"/>
+    <!-- List lines -->
+    <line x1="20" y1="30" x2="44" y2="30"/>
+    <line x1="20" y1="38" x2="44" y2="38"/>
+    <line x1="20" y1="46" x2="36" y2="46"/>
+    <!-- Check mark -->
+    <path d="M22 46l3 3 6-6"/>
+  </g>
+</svg>
