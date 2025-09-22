@@ -1,22 +1,36 @@
 module.exports = {
-  darkMode: 'class',
+  darkMode: ['class', '[class~="theme-dark"]'],
   content: ['./index.html', './src/**/*.{ts,tsx,js,jsx}'],
   theme: {
     extend: {
       colors: {
         bg: 'var(--bg)',
-        surface: 'var(--surface)',
-        panel: 'var(--panel)',
-        border: 'var(--border)',
         fg: 'var(--fg)',
-        'fg-muted': 'var(--fg-muted)',
-        accent: 'var(--accent)',
-        'accent-2': 'var(--accent-2)',
+        card: {
+          DEFAULT: 'var(--card)',
+          2: 'var(--card-2)'
+        },
+        border: 'var(--border)',
         muted: 'var(--muted)',
-        danger: 'var(--danger)',
-        warning: 'var(--warning)',
-        success: 'var(--success)'
+
+        primary: {
+          DEFAULT: 'var(--primary)',
+          a10: 'var(--primary-a10)',
+          a20: 'var(--primary-a20)',
+          a30: 'var(--primary-a30)',
+          a40: 'var(--primary-a40)',
+          a50: 'var(--primary-a50)',
+          a60: 'var(--primary-a60)'
+        },
+
+        success: { a10: 'var(--success-a10)', a20: 'var(--success-a20)', a30: 'var(--success-a30)' },
+        warning: { a10: 'var(--warning-a10)', a20: 'var(--warning-a20)', a30: 'var(--warning-a30)' },
+        danger:  { a10: 'var(--danger-a10)',  a20: 'var(--danger-a20)',  a30: 'var(--danger-a30)' },
+        info:    { a10: 'var(--info-a10)',    a20: 'var(--info-a20)',    a30: 'var(--info-a30)' }
       },
+      borderColor: { DEFAULT: 'var(--border)' },
+      textColor:   { DEFAULT: 'var(--fg)' },
+      backgroundColor: { DEFAULT: 'var(--bg)' },
       borderRadius: {
         sm: '8px',
         md: '12px',

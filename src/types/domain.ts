@@ -16,6 +16,9 @@ export interface LeanTo {
   width: number
   length: number
   legHeight: number
+  // new: distinct wall heights for lean-to
+  highSideHeight?: number
+  lowSideHeight?: number
   pitch?: 2 | 3 | 4
   spacing?: number
   roofStyle?: 'standard' | 'a_frame_horizontal' | 'a_frame_vertical'
@@ -59,6 +62,9 @@ export interface JobState {
   spacing: number
   roofOrientation: 'vertical' | 'horizontal'
   wallOrientation: 'vertical' | 'horizontal' | 'open'
+  // when buildingType is 'lean_to', use these instead of legHeight for horizontal wall calculations
+  highSideHeight?: number
+  lowSideHeight?: number
   // openings: list of openings on the building (walk door, window, rollup)
   openings?: { type: 'walk' | 'window' | 'rollup'; widthFt?: number; side?: 'end' | 'side' }[]
   // simple trim/anchor selections

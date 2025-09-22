@@ -35,9 +35,17 @@ export function exportBomPdf(title: string, bom: any[], filename = 'bom.pdf', in
     for (const row of grouped[cat]) {
   const pieces = typeof row.piecesPerSide === 'number' ? `${row.piecesPerSide} per side` : ''
   const formattedLen = row.pieceLengthDisplay || (typeof row.pieceLengthFt === 'number' ? formatFeetToFtIn(row.pieceLengthFt) : (row.length ? formatFeetToFtIn(row.length) : ''))
+  // Prefer explicit panelColor; fallback to parsing from notes like `color:xyz`
+  const parsedFromNotes = (() => {
+    if (!row?.notes || typeof row.notes !== 'string') return ''
+    const m = row.notes.match(/color:([^;\)]+)(?:[;)]|$)/i)
+    return m ? m[1].trim() : ''
+  })()
+  const colorStr = (row.panelColor as string) || parsedFromNotes || ''
   const noteParts = []
   if (pieces) noteParts.push(pieces)
   if (formattedLen) noteParts.push(formattedLen)
+  if (colorStr) noteParts.push(`color:${colorStr}`)
   if (row.notes) noteParts.push(row.notes)
   const notes = noteParts.length ? `(${noteParts.join('; ')})` : ''
   const line = `${row.item} — ${row.qty} ${row.unit || 'ea'} ${notes}`

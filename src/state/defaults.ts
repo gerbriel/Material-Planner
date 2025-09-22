@@ -5,6 +5,8 @@ export const makeDefaultLeanTo = (position: LeanTo['position']): LeanTo => ({
   width: 12,
   length: 20,
   legHeight: 8,
+  highSideHeight: 9,
+  lowSideHeight: 7,
   pitch: 2,
   spacing: 5,
   roofStyle: 'a_frame_horizontal',

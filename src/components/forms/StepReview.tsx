@@ -4,18 +4,64 @@ import { jobAtom } from '../../state/atoms'
 import ColumnResizerTable from '../ui/ColumnResizerTable'
 import LiveSummary from '../layout/LiveSummary'
 import { buildSimpleBom } from '../../lib/bom/generator'
-import { formatFeetToFtIn } from '../../lib/format/length'
+import { formatFeetToFtIn, parseFtInToFeet } from '../../lib/format/length'
 
 export default function StepReview() {
   const [job] = useAtom(jobAtom)
   // BOM filters removed — show all categories
   const bom = buildSimpleBom(job)
 
-  const grouped = bom.reduce((acc: Record<string, any[]>, row: any) => {
-    acc[row.category] = acc[row.category] || []
-    acc[row.category].push(row)
+  // Consolidate Panels and Trim by same length and color. Keep other categories as-is.
+  type BomRow = any
+  const grouped = bom.reduce((acc: Record<string, BomRow[]>, row: BomRow) => {
+    // Determine if row should be consolidated as Panels or Trim
+    const isPanelish = (row.category === 'Walls' || row.category === 'Roof' || row.category === 'Panels') && (row.unit === 'sheet' || row.unit === 'pcs')
+    const isTrim = row.category === 'Trim' && (row.unit === 'pcs' || row.length)
+    const targetCat = isPanelish ? 'Panels' : isTrim ? 'Trim' : row.category
+
+    acc[targetCat] = acc[targetCat] || []
+    if (isPanelish) {
+      const color = row.panelColor || ''
+      const lenFt = typeof row.pieceLengthFt === 'number' ? row.pieceLengthFt
+        : typeof row.length === 'number' ? row.length
+        : parseFtInToFeet(row.length)
+      const unit = row.unit || 'sheet'
+      const existing = (acc[targetCat] as BomRow[]).find(r => (
+        (r.panelColor || '') === color &&
+        ((typeof r.pieceLengthFt === 'number' ? r.pieceLengthFt : (typeof r.length === 'number' ? r.length : parseFtInToFeet(r.length))) === lenFt) &&
+        (r.unit || '') === unit
+      ))
+      if (existing) {
+        existing.qty += row.qty || 0
+      } else {
+        acc[targetCat].push({ ...row, item: targetCat, panelColor: color, pieceLengthFt: lenFt ?? row.pieceLengthFt, unit })
+      }
+      return acc
+    }
+    if (isTrim) {
+      const color = row.panelColor || ''
+      const lenFt = typeof row.pieceLengthFt === 'number' ? row.pieceLengthFt
+        : typeof row.length === 'number' ? row.length
+        : parseFtInToFeet(row.length)
+      const unit = row.unit || 'pcs'
+      const existing = (acc[targetCat] as BomRow[]).find(r => (
+        r.item === row.item &&
+        (r.panelColor || '') === color &&
+        ((typeof r.pieceLengthFt === 'number' ? r.pieceLengthFt : (typeof r.length === 'number' ? r.length : parseFtInToFeet(r.length))) === lenFt) &&
+        (r.unit || '') === unit
+      ))
+      if (existing) {
+        existing.qty += row.qty || 0
+      } else {
+        // Preserve the trim type label (Eave, Rake, Gable, etc.)
+        acc[targetCat].push({ ...row, panelColor: color, pieceLengthFt: lenFt ?? row.pieceLengthFt, unit })
+      }
+      return acc
+    }
+    // Non-panel/trim rows remain as-is under their original category
+    acc[targetCat].push(row)
     return acc
-  }, {})
+  }, {} as Record<string, BomRow[]>)
 
   return (
     <div>
@@ -41,27 +87,13 @@ export default function StepReview() {
                 let lengthVal: number | undefined = undefined
                 if (typeof r.pieceLengthFt === 'number') lengthVal = r.pieceLengthFt
                 else if (typeof r.length === 'number') lengthVal = r.length
+                else if (typeof r.length === 'string') lengthVal = parseFtInToFeet(r.length)
                 if (typeof lengthVal === 'number') lengthDisplay = formatFeetToFtIn(lengthVal)
 
                 const color = r.panelColor || ''
 
-                // nicer label for panels: show Side/End when sideOrEnd provided
-                if (r.sideOrEnd === 'side' || r.sideOrEnd === 'end') {
-                  const which = r.sideOrEnd === 'side' ? 'Side Panels' : 'End Panels'
-                  const spacingVal = typeof r.pieceLengthFt === 'number' ? r.pieceLengthFt : (typeof r.length === 'number' ? r.length : undefined)
-                  const lengthText = typeof spacingVal === 'number' ? formatFeetToFtIn(spacingVal) : lengthDisplay
-                  return (
-                    <tr key={i}>
-                      <td>{which}</td>
-                      <td>{r.qty}</td>
-                      <td>{lengthText}</td>
-                      <td>{color ? <span className="inline-flex items-center gap-2"><span style={{width:12,height:12,background:color,display:'inline-block',borderRadius:2,border:'1px solid rgba(0,0,0,0.1)'}}></span><span className="text-xs">{color}</span></span> : '—'}</td>
-                      <td>{r.unit || 'ea'}</td>
-                      <td>{r.notes || ''}</td>
-                    </tr>
-                  )
-                }
-                const label = r.item
+                // Simplified label for consolidated categories
+                const label = r.item || cat
                 return (
                   <tr key={i}>
                     <td>{label}</td>

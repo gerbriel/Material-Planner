@@ -15,7 +15,7 @@ export default function LiveSummary({ job }: { job: any }) {
     if (!c) return <span>—</span>
     return (
       <span className="inline-flex items-center gap-2 ml-2 align-middle">
-        <span style={{ width: 12, height: 12, background: c, display: 'inline-block', borderRadius: 2, border: '1px solid rgba(0,0,0,0.1)' }} />
+        <span className="color-chip" style={{ width: 12, height: 12, background: c, display: 'inline-block', borderRadius: 2, border: '1px solid rgba(0,0,0,0.1)' }} />
         <span className="text-xs">{c}</span>
       </span>
     )
@@ -28,7 +28,8 @@ export default function LiveSummary({ job }: { job: any }) {
   const anchors = countAnchorsDetailed(legs, job.foundation || 'bare', job.frameGauge, job.width)
   const openings = computeOpeningReinforcement(job.openings || [], job.width)
 
-  const horizontalSummary = computeHorizontalPanelSummary({ lengthFt: job.length, widthFt: job.width, legHeightFt: job.legHeight, panelCoverageFt: job.panelCoverageFt, roofPitchX12: job.pitch ?? 0 })
+  const legForPanels = (job.lowSideHeight ?? job.legHeight)
+  const horizontalSummary = computeHorizontalPanelSummary({ lengthFt: job.length, widthFt: job.width, legHeightFt: legForPanels, panelCoverageFt: job.panelCoverageFt, roofPitchX12: job.pitch ?? 0 })
 
   const leftCourses = (job.wallOrientation === 'horizontal') ? (job.leftSideCourses ?? horizontalSummary.sideCourses) : 0
   const rightCourses = (job.wallOrientation === 'horizontal') ? (job.rightSideCourses ?? horizontalSummary.sideCourses) : 0
@@ -63,6 +64,17 @@ export default function LiveSummary({ job }: { job: any }) {
   const backTotal = backDisplay
   const endTotal = frontDisplay + backDisplay
 
+  // Convert courses to panel sheet counts for display: sheets-per-course = ceil(run / panelCoverageFt)
+  const panelCoverageFt = job.panelCoverageFt || 3
+  const sheetsPerSideCourse = Math.ceil((job.length || 0) / panelCoverageFt)
+  const sheetsPerEndCourse = Math.ceil((job.width || 0) / panelCoverageFt)
+  const leftSheets = leftDisplay * sheetsPerSideCourse
+  const rightSheets = rightDisplay * sheetsPerSideCourse
+  const sideTotalSheets = leftSheets + rightSheets
+  const frontSheets = frontDisplay * sheetsPerEndCourse
+  const backSheets = backDisplay * sheetsPerEndCourse
+  const endTotalSheets = frontSheets + backSheets
+
   const [, setSelectedWidget] = useAtom(selectedWidgetAtom)
 
   function onMouseEnter() {
@@ -79,7 +91,13 @@ export default function LiveSummary({ job }: { job: any }) {
     <div className="card relative" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       {/* drag handle removed */}
       <h3 className="font-semibold mb-2">Live Summary</h3>
-      <div className="text-sm text-muted-500">{job.buildingType} — {job.width}ft × {job.length}ft × {job.legHeight}ft</div>
+      <div className="text-sm text-muted-500">
+        {job.buildingType} — {job.width}ft × {job.length}ft × {job.buildingType === 'lean_to' ? (
+          <span>high {job.highSideHeight ?? '—'}', low {job.lowSideHeight ?? '—'}'</span>
+        ) : (
+          <span>{job.legHeight}ft</span>
+        )}
+      </div>
       <div className="mt-3 text-sm">
         <div className="mb-3">
           <h4 className="font-semibold">Panels</h4>
@@ -88,46 +106,58 @@ export default function LiveSummary({ job }: { job: any }) {
             <div>{panels.totalSheets} @ {formatFeetToFtIn(panels.panelLen)}</div>
 
             <div className="mt-2 font-medium">Side Panels:<ColorChip color={job.panelColorSide} /></div>
-            { (leftDisplay === rightDisplay) ? (
-              <div>{sideTotal} @ {formatFeetToFtIn(leftRun)}</div>
+            { (leftSheets === rightSheets) ? (
+              <div>{sideTotalSheets} @ {formatFeetToFtIn(leftRun)}</div>
             ) : (
               <>
-                <div>Left Side: {leftDisplay} @ {formatFeetToFtIn(leftRun)}</div>
-                <div>Right Side: {rightDisplay} @ {formatFeetToFtIn(rightRun)}</div>
+                <div>Left Side: {leftSheets} @ {formatFeetToFtIn(leftRun)}</div>
+                <div>Right Side: {rightSheets} @ {formatFeetToFtIn(rightRun)}</div>
               </>
             )}
 
             <div className="mt-2 font-medium">End Panels:<ColorChip color={job.panelColorEnd || job.panelColorSide} /></div>
-            { (frontDisplay === backDisplay) ? (
-              <div>{endTotal} @ {formatFeetToFtIn(frontRun)}</div>
+            { (frontSheets === backSheets) ? (
+              <div>{endTotalSheets} @ {formatFeetToFtIn(frontRun)}</div>
             ) : (
               <>
-                <div>Front End: {frontDisplay} @ {formatFeetToFtIn(frontRun)}</div>
-                <div>Back End: {backDisplay} @ {formatFeetToFtIn(backRun)}</div>
+                <div>Front End: {frontSheets} @ {formatFeetToFtIn(frontRun)}</div>
+                <div>Back End: {backSheets} @ {formatFeetToFtIn(backRun)}</div>
               </>
             )}
 
-            <div className="text-xs mt-2">Courses: side {horizontalSummary.sideCourses}, end {horizontalSummary.endCourses} · Gable rise: {formatFeetToFtIn(horizontalSummary.gableRiseFt)}</div>
+            {/* Courses/Gable line removed per request */}
 
             { wainscotMode && (leftWainscot + rightWainscot + frontWainscot + backWainscot > 0) && (
               <div className="mt-3">
                 <div className="font-medium">Wainscot:<ColorChip color={job.wainscotColor} /></div>
-                { (leftWainscot + rightWainscot) > 0 && (
-                  (leftWainscot === rightWainscot)
-                    ? <div>{leftWainscot + rightWainscot} @ {formatFeetToFtIn(leftRun)} (sides)</div>
-                    : <>
-                        {leftWainscot > 0 && <div>Left Side: {leftWainscot} @ {formatFeetToFtIn(leftRun)}</div>}
-                        {rightWainscot > 0 && <div>Right Side: {rightWainscot} @ {formatFeetToFtIn(rightRun)}</div>}
-                      </>
-                )}
-                { (frontWainscot + backWainscot) > 0 && (
-                  (frontWainscot === backWainscot)
-                    ? <div>{frontWainscot + backWainscot} @ {formatFeetToFtIn(frontRun)} (ends)</div>
-                    : <>
-                        {frontWainscot > 0 && <div>Front End: {frontWainscot} @ {formatFeetToFtIn(frontRun)}</div>}
-                        {backWainscot > 0 && <div>Back End: {backWainscot} @ {formatFeetToFtIn(backRun)}</div>}
-                      </>
-                )}
+                { (() => {
+                  const leftWainSheets = leftWainscot * sheetsPerSideCourse
+                  const rightWainSheets = rightWainscot * sheetsPerSideCourse
+                  const frontWainSheets = frontWainscot * sheetsPerEndCourse
+                  const backWainSheets = backWainscot * sheetsPerEndCourse
+                  const anySide = (leftWainSheets + rightWainSheets) > 0
+                  const anyEnd = (frontWainSheets + backWainSheets) > 0
+                  return (
+                    <>
+                      { anySide && (
+                        (leftWainSheets === rightWainSheets)
+                          ? <div>{leftWainSheets + rightWainSheets} @ {formatFeetToFtIn(leftRun)} (sides)</div>
+                          : <>
+                              {leftWainSheets > 0 && <div>Left Side: {leftWainSheets} @ {formatFeetToFtIn(leftRun)}</div>}
+                              {rightWainSheets > 0 && <div>Right Side: {rightWainSheets} @ {formatFeetToFtIn(rightRun)}</div>}
+                            </>
+                      )}
+                      { anyEnd && (
+                        (frontWainSheets === backWainSheets)
+                          ? <div>{frontWainSheets + backWainSheets} @ {formatFeetToFtIn(frontRun)} (ends)</div>
+                          : <>
+                              {frontWainSheets > 0 && <div>Front End: {frontWainSheets} @ {formatFeetToFtIn(frontRun)}</div>}
+                              {backWainSheets > 0 && <div>Back End: {backWainSheets} @ {formatFeetToFtIn(backRun)}</div>}
+                            </>
+                      )}
+                    </>
+                  )
+                })() }
               </div>
             )}
 
@@ -177,57 +207,7 @@ export default function LiveSummary({ job }: { job: any }) {
         { (job.openings || []).length > 0 && (
           <div className="mt-2">Openings: Headers {openings.headerLF} ft, L-Brackets {openings.lBrackets}, Blocking {openings.blocking}</div>
         )}
-        {Array.isArray(job.leanTos) && job.leanTos.length > 0 && (
-          <div className="mt-3">
-            <div className="font-semibold">Lean-tos</div>
-            <div className="space-y-2 mt-1 text-xs">
-              {job.leanTos.map((lt: any, idx: number) => {
-                const label = (lt.position || '').charAt(0).toUpperCase() + (lt.position || '').slice(1)
-                const roof = roofPanelSheets(lt.width, lt.length, lt.roofOrientation)
-                const hsum = computeHorizontalPanelSummary({ lengthFt: lt.length, widthFt: lt.width, legHeightFt: lt.legHeight, panelCoverageFt: job.panelCoverageFt, roofPitchX12: lt.pitch ?? 0 })
-                const sideCourses = lt.wallOrientation === 'horizontal' ? (lt.leftSideCourses ?? hsum.sideCourses) : 0
-                const endCourses = lt.wallOrientation === 'horizontal' ? (lt.frontEndCourses ?? hsum.endCourses) : 0
-                const ridgePieces = (typeof lt.length === 'number' && lt.length > 0) ? Math.ceil(((lt.length || 0) + 1) / 11) : 0
-                const trimsLt = breakdownTrims({ eave: (lt.width || 0) * 2, rake: (lt.length || 0) * 2, gable: 0, corner: 4 })
-                const findLt = (type: string) => trimsLt.items.find((it: any) => it.type === type)
-                const eaveLt = findLt('eave')?.roundedLF ?? 0
-                const rakeLt = findLt('rake')?.roundedLF ?? 0
-                const gableLt = findLt('gable')?.roundedLF ?? 0
-                const cornerLt = findLt('corner')?.roundedLF ?? 0
-                return (
-                  <div key={idx} className="border-t border-[rgba(255,255,255,0.08)] pt-2">
-                    <div className="font-medium">{label} — {lt.width}×{lt.length}×{lt.legHeight}</div>
-                    <div>Roof: {roof.totalSheets} @ {formatFeetToFtIn(roof.panelLen)} <ColorChip color={lt.panelColorRoof} /></div>
-                    {lt.wallOrientation === 'horizontal' && (
-                      <div>Walls: Sides {sideCourses}, Ends {endCourses} <ColorChip color={lt.panelColorSide} /></div>
-                    )}
-                    <div className="mt-1">Trim (11' pieces):</div>
-                    <div className="text-[11px] ml-2">
-                      <div className="flex items-center gap-2">Eave: {Math.ceil(eaveLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
-                      <div className="flex items-center gap-2">Rake: {Math.ceil(rakeLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
-                      <div className="flex items-center gap-2">Gable: {Math.ceil(gableLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
-                      <div className="flex items-center gap-2">Corner: {Math.ceil(cornerLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
-                      <div className="flex items-center gap-2">Ridgecap: {ridgePieces} pcs <span className="text-[10px] text-muted-500">(roof color)</span> <ColorChip color={lt.panelColorRoof} /></div>
-                    </div>
-                    {Array.isArray(lt.extraPanels) && lt.extraPanels.length > 0 && (
-                      <div className="mt-1">
-                        <div className="font-medium">Extra Panels:</div>
-                        <div className="space-y-0.5">
-                          {lt.extraPanels.map((p: any, j: number) => {
-                            const qty = Number(p?.qty || 0)
-                            const len = Number(p?.lengthFt || 0)
-                            if (!qty || !len) return null
-                            return <div key={j}>{qty} @ {formatFeetToFtIn(len)}{p?.color ? ` — ${p.color}` : ''}</div>
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Lean-tos moved to standalone tiles; removed from Live Summary */}
         {panels.exceeds && <div className="text-yellow-400 mt-2">Warning: panel length {formatFeetToFtIn(panels.panelLen)} exceeds 31' shipping limit</div>}
       </div>
     </div>

@@ -7,11 +7,20 @@ import Select from '../ui/Select'
 import { jobSchema } from '../../state/schema'
 import StepNav from '../ui/StepNav'
 import { makeDefaultLeanTo } from '../../state/defaults'
+import ExtraPanelsEditor from './ExtraPanelsEditor'
+import OpeningsEditor from './OpeningsEditor'
+import LeanToEditor from './LeanToEditor'
 
 
 export default function StepBuilding() {
   const [job, setJob] = useAtom(jobAtom)
   const [errors, setErrors] = useState<string | null>(null)
+  const prevColorsRef = React.useRef<{ roof?: string; side?: string; end?: string; wainscot?: string }>({
+    roof: undefined,
+    side: undefined,
+    end: undefined,
+    wainscot: undefined
+  })
 
   const update = (patch: any) => {
     setJob({ ...job, ...patch })
@@ -63,38 +72,70 @@ export default function StepBuilding() {
     ;(document.activeElement as HTMLElement)?.blur()
   }
 
+  // Keep lean-to colors in sync with main building colors unless user changed them explicitly.
+  // Rule: If a lean-to color is undefined/blank or it equals the previous main color, update it to the new main color.
+  React.useEffect(() => {
+    const mainRoof = job.panelColorRoof
+    const mainSide = job.panelColorSide
+    const mainEnd = job.panelColorEnd || job.panelColorSide
+    const mainWainscot = job.wainscotColor
+    const prev = prevColorsRef.current
+    if (!Array.isArray(job.leanTos) || job.leanTos.length === 0) {
+      prevColorsRef.current = { roof: mainRoof, side: mainSide, end: mainEnd, wainscot: mainWainscot }
+      return
+    }
+    let changed = false
+    const nextLeanTos = job.leanTos.map((lt: any) => {
+      const next: any = { ...lt }
+      // roof
+      if (!next.panelColorRoof || next.panelColorRoof === prev.roof) {
+        if (mainRoof && next.panelColorRoof !== mainRoof) { next.panelColorRoof = mainRoof; changed = true }
+      }
+      // side
+      if (!next.panelColorSide || next.panelColorSide === prev.side) {
+        if (mainSide && next.panelColorSide !== mainSide) { next.panelColorSide = mainSide; changed = true }
+      }
+      // end
+      const inheritEnd = mainEnd
+      if (!next.panelColorEnd || next.panelColorEnd === prev.end || next.panelColorEnd === next.panelColorSide) {
+        if (inheritEnd && next.panelColorEnd !== inheritEnd) { next.panelColorEnd = inheritEnd; changed = true }
+      }
+      // wainscot
+      if (!next.wainscotColor || next.wainscotColor === prev.wainscot) {
+        if (typeof mainWainscot === 'string' && next.wainscotColor !== mainWainscot) { next.wainscotColor = mainWainscot; changed = true }
+      }
+      return next
+    })
+    if (changed) setJob({ ...job, leanTos: nextLeanTos })
+    prevColorsRef.current = { roof: mainRoof, side: mainSide, end: mainEnd, wainscot: mainWainscot }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.panelColorRoof, job.panelColorSide, job.panelColorEnd, job.wainscotColor])
+
   // compute panel option maxima
   const panelCoverageFt = job.panelCoverageFt ?? 3
-  const maxCoursesSide = job.legHeight ? Math.ceil(job.legHeight / panelCoverageFt) : 0
+  const baseHeightForPanels = job.buildingType === 'lean_to' ? (job.lowSideHeight || job.legHeight || 0) : (job.legHeight || 0)
+  const maxCoursesSide = baseHeightForPanels ? Math.ceil(baseHeightForPanels / panelCoverageFt) : 0
   const gableRiseFt = (job.pitch ?? 0) / 12 * ((job.width ?? 0) / 2)
-  const maxCoursesEnd = job.legHeight ? Math.ceil(((job.legHeight ?? 0) + gableRiseFt) / panelCoverageFt) : 0
+  const maxCoursesEnd = baseHeightForPanels ? Math.ceil(((baseHeightForPanels ?? 0) + gableRiseFt) / panelCoverageFt) : 0
 
   function makeSideOptions(max: number) {
     const opts: Array<{ label: string; value: number }> = []
     if (max < 1) return opts
-    opts.push({ label: 'Single panel', value: 1 })
-    opts.push({ label: '1/4 height', value: Math.max(1, Math.ceil(max * 0.25)) })
-    opts.push({ label: '1/3 height', value: Math.max(1, Math.ceil(max * (1 / 3))) })
-    opts.push({ label: 'Halfway', value: Math.max(1, Math.ceil(max * 0.5)) })
-    // include integers 2..max
-    for (let i = 2; i <= max; i++) opts.push({ label: `${i} panels`, value: i })
-    opts.push({ label: 'Full height', value: max })
-    // dedupe by value preserving order
-    const seen = new Set<number>()
-    return opts.filter(o => (seen.has(o.value) ? false : (seen.add(o.value), true)))
+    // Only whole panels from 1..max
+    for (let i = 1; i <= max; i++) {
+      opts.push({ label: i === 1 ? '1 panel' : `${i} panels`, value: i })
+    }
+    return opts
   }
 
   function makeEndOptions(max: number) {
     const opts: Array<{ label: string; value: number }> = []
     if (max < 1) return opts
+    // Only whole panels; keep helpful names for the first two when available
     opts.push({ label: 'Gable (1 panel)', value: 1 })
-    opts.push({ label: 'Extended gable (2 panels)', value: Math.min(2, max) })
-    opts.push({ label: '1/3 height', value: Math.max(1, Math.ceil(max * (1 / 3))) })
-    opts.push({ label: 'Halfway', value: Math.max(1, Math.ceil(max * 0.5)) })
+    if (max >= 2) opts.push({ label: 'Extended gable (2 panels)', value: 2 })
     for (let i = 3; i <= max; i++) opts.push({ label: `${i} panels`, value: i })
-    opts.push({ label: 'Fully enclosed', value: max })
-    const seen = new Set<number>()
-    return opts.filter(o => (seen.has(o.value) ? false : (seen.add(o.value), true)))
+    return opts
   }
 
   const sideOptions = makeSideOptions(maxCoursesSide)
@@ -104,9 +145,25 @@ export default function StepBuilding() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <h2 className="text-xl font-semibold">Building</h2>
-        <div className="min-w-[220px]">
-          <label className="block text-sm">Work Order #</label>
-          <Input value={job.workOrderId || ''} onChange={(e: any) => update({ workOrderId: e.target.value })} placeholder="e.g. WO-12345" />
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-sm">Building Type</label>
+            <Select value={job.buildingType || ''} onChange={(e: any) => update({ buildingType: e.target.value })}>
+              <option value="">—</option>
+              <option value="carport">Carport</option>
+              <option value="rv_cover">RV Cover</option>
+              <option value="garage">Garage</option>
+              <option value="barn">Barn</option>
+              <option value="lean_to">Lean-to</option>
+              <option value="combo">Combo</option>
+              <option value="widespan">Widespan</option>
+              <option value="utility_garage">Utility Garage</option>
+            </Select>
+          </div>
+          <div className="min-w-[220px]">
+            <label className="block text-sm">Work Order #</label>
+            <Input value={job.workOrderId || ''} onChange={(e: any) => update({ workOrderId: e.target.value })} placeholder="e.g. WO-12345" />
+          </div>
         </div>
       </div>
       {errors && <div className="text-red-400">{errors}</div>}
@@ -120,10 +177,23 @@ export default function StepBuilding() {
           <label className="block text-sm">Length (ft) <span className="text-xs text-muted-500">(side-wall run)</span></label>
           <Input value={job.length === undefined || job.length === null ? '' : job.length} onChange={(e: any) => update({ length: e.target.value === '' ? undefined : Number(e.target.value) })} />
         </div>
-        <div>
-          <label className="block text-sm">Height (Leg) (ft)</label>
-          <Input value={job.legHeight === undefined || job.legHeight === null ? '' : job.legHeight} onChange={(e: any) => update({ legHeight: e.target.value === '' ? undefined : Number(e.target.value) })} />
-        </div>
+        {job.buildingType === 'lean_to' ? (
+          <>
+            <div>
+              <label className="block text-sm">High Side Height (ft)</label>
+              <Input value={job.highSideHeight ?? ''} onChange={(e: any) => update({ highSideHeight: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className="block text-sm">Low Side Height (ft)</label>
+              <Input value={job.lowSideHeight ?? ''} onChange={(e: any) => update({ lowSideHeight: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="block text-sm">Height (Leg) (ft)</label>
+            <Input value={job.legHeight === undefined || job.legHeight === null ? '' : job.legHeight} onChange={(e: any) => update({ legHeight: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          </div>
+        )}
 
         {/* Roof style maps to roofOrientation */}
         <div>
@@ -286,9 +356,9 @@ export default function StepBuilding() {
                 update({ leftSideCourses: v })
               }}>
                 <option value="">Full height (max)</option>
-                {sideOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} courses</option>)}
+                {sideOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} {o.value === 1 ? 'panel' : 'panels'}</option>)}
               </Select>
-              <div id="leftSideHelp" className="text-xs text-muted-500">Max: {maxCoursesSide}. "Full height" uses the maximum courses (may increase material).</div>
+              <div id="leftSideHelp" className="text-xs text-muted-500">Max: {maxCoursesSide}. "Full height" uses the maximum panels (may increase material).</div>
             </div>
           )}
         </div>
@@ -305,9 +375,9 @@ export default function StepBuilding() {
                 update({ rightSideCourses: v })
               }}>
                 <option value="">Full height (max)</option>
-                {sideOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} courses</option>)}
+                {sideOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} {o.value === 1 ? 'panel' : 'panels'}</option>)}
               </Select>
-              <div id="rightSideHelp" className="text-xs text-muted-500">Max: {maxCoursesSide}. "Full height" uses the maximum courses (may increase material).</div>
+              <div id="rightSideHelp" className="text-xs text-muted-500">Max: {maxCoursesSide}. "Full height" uses the maximum panels (may increase material).</div>
             </div>
           )}
         </div>
@@ -324,7 +394,7 @@ export default function StepBuilding() {
                 update({ frontEndCourses: v })
               }}>
                 <option value="">Full height (fully enclosed)</option>
-                {endOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} courses</option>)}
+                {endOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} {o.value === 1 ? 'panel' : 'panels'}</option>)}
               </Select>
               <div id="frontEndHelp" className="text-xs text-muted-500">Max: {maxCoursesEnd}. Choosing "Full height (fully enclosed)" may increase required sheets due to gable/waste.</div>
             </div>
@@ -343,7 +413,7 @@ export default function StepBuilding() {
                 update({ backEndCourses: v })
               }}>
                 <option value="">Full height (fully enclosed)</option>
-                {endOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} courses</option>)}
+                {endOptions.map(o => <option key={o.value} value={o.value}>{o.label} — {o.value} {o.value === 1 ? 'panel' : 'panels'}</option>)}
               </Select>
               <div id="backEndHelp" className="text-xs text-muted-500">Max: {maxCoursesEnd}. Choosing "Full height (fully enclosed)" may increase required sheets due to gable/waste.</div>
             </div>
@@ -419,7 +489,16 @@ export default function StepBuilding() {
                         const list = [...(job.leanTos || [])]
                         const idx = list.findIndex((lt: any) => lt.position === pos)
                         if (e.target.checked) {
-                          if (idx === -1) list.push(makeDefaultLeanTo(pos))
+                          if (idx === -1) {
+                            const base = makeDefaultLeanTo(pos)
+                            list.push({
+                              ...base,
+                              panelColorRoof: job.panelColorRoof || base.panelColorRoof,
+                              panelColorSide: job.panelColorSide || base.panelColorSide,
+                              panelColorEnd: (job.panelColorEnd || job.panelColorSide || base.panelColorEnd),
+                              wainscotColor: job.wainscotColor || base.wainscotColor
+                            })
+                          }
                         } else {
                           if (idx !== -1) list.splice(idx, 1)
                         }
@@ -434,15 +513,20 @@ export default function StepBuilding() {
               {(job.leanTos || []).length > 0 && (
                 <div className="space-y-4">
                   {(job.leanTos || []).map((lt: any, i: number) => (
-                    <LeanToEditor key={lt.position} leanTo={lt} onChange={(patch) => {
-                      const list = [...(job.leanTos || [])]
-                      list[i] = { ...list[i], ...patch }
-                      update({ leanTos: list })
-                    }} onRemove={() => {
-                      const list = [...(job.leanTos || [])]
-                      list.splice(i,1)
-                      update({ leanTos: list })
-                    }} />
+                    <LeanToEditor
+                      key={lt.position}
+                      leanTo={lt}
+                      onChange={(patch) => {
+                        const list = [...(job.leanTos || [])]
+                        list[i] = { ...list[i], ...patch }
+                        update({ leanTos: list })
+                      }}
+                      onRemove={() => {
+                        const list = [...(job.leanTos || [])]
+                        list.splice(i, 1)
+                        update({ leanTos: list })
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -450,320 +534,9 @@ export default function StepBuilding() {
           )}
         </div>
       </div>
-      <StepNav onNext={onNext} onBlank={() => setJob({ ...job, buildingType: '' })} onReset={resetBlank} />
+  {/* Step navigation moved under Live Summary (page 1) */}
     </div>
   )
 }
 
-function ExtraPanelsEditor({ panels, onChange }: { panels: Array<{ lengthFt?: number; qty?: number; color?: string }>; onChange: (v: any[]) => void }) {
-  const [lengthText, setLengthText] = useState<string[]>(() => (panels || []).map(p => (p.lengthFt ?? '') as any as string))
-
-  useEffect(() => {
-    setLengthText(prev => (panels || []).map((p, idx) => prev[idx] ?? (p.lengthFt != null ? String(p.lengthFt) : '')))
-  }, [panels])
-
-  function parseLengthToFeet(input: string): number | undefined {
-    if (!input) return undefined
-    let s = String(input).trim()
-    if (!s) return undefined
-    s = s.replace(/[’]/g, "'")
-    const ftMatch = s.match(/(-?\d+(?:\.\d+)?)\s*'/)
-    const inMatch = s.match(/(-?\d+(?:\.\d+)?)\s*\"/)
-    let feet = 0
-    let inches = 0
-    if (ftMatch) feet = parseFloat(ftMatch[1])
-    if (inMatch) inches = parseFloat(inMatch[1])
-    if (!ftMatch && !inMatch) {
-      // try space or dash separated "ft in" like 10 6 or 10-6
-      const parts = s.split(/[\s-]+/).filter(Boolean)
-      if (parts.length === 2 && !parts.some(p => isNaN(Number(p)))) {
-        feet = parseFloat(parts[0])
-        inches = parseFloat(parts[1])
-      } else if (!isNaN(Number(s))) {
-        // plain number => treat as feet
-        feet = parseFloat(s)
-      }
-    }
-    const total = feet + (inches ? inches / 12 : 0)
-    return isFinite(total) ? total : undefined
-  }
-
-  function updateAt(i: number, patch: any) {
-    const next = [...panels]
-    next[i] = { ...(next[i] || {}), ...patch }
-    onChange(next)
-  }
-  function add() {
-    onChange([...(panels || []), { lengthFt: 10, qty: 1, color: '' }])
-    setLengthText(prev => [...prev, '10'])
-  }
-  function remove(i: number) {
-    const next = panels.slice()
-    next.splice(i, 1)
-    onChange(next)
-    setLengthText(prev => {
-      const arr = prev.slice()
-      arr.splice(i, 1)
-      return arr
-    })
-  }
-  return (
-    <div className="space-y-2">
-      {(panels || []).map((p, i) => (
-        <div key={i} className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="block text-xs">Qty</label>
-            <Input value={p.qty ?? ''} onChange={(e: any) => updateAt(i, { qty: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="Qty" />
-          </div>
-          <div>
-            <label className="block text-xs">Length</label>
-            <Input value={lengthText[i] ?? (p.lengthFt ?? '')} onChange={(e: any) => {
-              const txt = e.target.value
-              setLengthText(prev => {
-                const arr = prev.slice()
-                arr[i] = txt
-                return arr
-              })
-              const feet = parseLengthToFeet(txt)
-              updateAt(i, { lengthFt: txt === '' ? undefined : feet })
-            }} placeholder={'e.g. 10\' 6"'} />
-          </div>
-          <div>
-            <label className="block text-xs">Color</label>
-            <Select value={p.color || ''} onChange={(e: any) => updateAt(i, { color: e.target.value })}>
-              <option value="">—</option>
-              <option value="Galvalume">Galvalume</option>
-              <option value="White">White</option>
-              <option value="Red">Red</option>
-              <option value="Blue">Blue</option>
-              <option value="Tan">Tan</option>
-              <option value="Green">Green</option>
-            </Select>
-          </div>
-          <div className="col-span-3 text-right">
-            <button type="button" className="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.08)]" onClick={() => remove(i)}>Remove</button>
-          </div>
-        </div>
-      ))}
-      <button type="button" className="text-xs px-2 py-1 rounded bg-primary-500 text-white" onClick={add}>Add Extra Panel</button>
-    </div>
-  )
-}
-
-function OpeningsEditor({ openings, buildingWidth, onChange }: { openings: Array<{ type: 'walk' | 'window' | 'rollup'; widthFt?: number; side?: 'end' | 'side' }>; buildingWidth: number; onChange: (v: any[]) => void }) {
-  function updateAt(i: number, patch: any) {
-    const next = [...(openings||[])]
-    next[i] = { ...(next[i] || {}), ...patch }
-    onChange(next)
-  }
-  function add() {
-    onChange([...(openings||[]), { type: 'walk', widthFt: 3, side: 'side' }])
-  }
-  function remove(i: number) {
-    const next = openings.slice()
-    next.splice(i, 1)
-    onChange(next)
-  }
-  return (
-    <div className="space-y-2">
-      {(openings||[]).map((o, i) => (
-        <div key={i} className="grid grid-cols-3 gap-2">
-          <Select value={o.type} onChange={(e: any) => updateAt(i, { type: e.target.value })}>
-            <option value="walk">Walk-in Door</option>
-            <option value="window">Window</option>
-            <option value="rollup">Roll-up Door</option>
-          </Select>
-          <Input value={o.widthFt ?? ''} onChange={(e: any) => updateAt(i, { widthFt: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="Width (ft)" />
-          <Select value={o.side || 'side'} onChange={(e: any) => updateAt(i, { side: e.target.value })}>
-            <option value="side">Side</option>
-            <option value="end">End</option>
-          </Select>
-          <div className="col-span-3 text-right">
-            <button type="button" className="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.08)]" onClick={() => remove(i)}>Remove</button>
-          </div>
-        </div>
-      ))}
-      <button type="button" className="text-xs px-2 py-1 rounded bg-primary-500 text-white" onClick={add}>Add Opening</button>
-    </div>
-  )
-}
-
-function LeanToEditor({ leanTo, onChange, onRemove }: { leanTo: any; onChange: (patch: any) => void; onRemove: () => void }) {
-  const update = (patch: any) => onChange(patch)
-  const roofStyle = leanTo.roofStyle || (leanTo.roofOrientation ? (leanTo.roofOrientation === 'vertical' ? 'a_frame_vertical' : 'a_frame_horizontal') : '')
-  // compute basics for horizontal panel UI reuse
-  const coverage = 3
-  const sideMax = Math.ceil((leanTo.legHeight || 0) / coverage)
-  const gableRise = ((leanTo.pitch || 0) / 12) * ((leanTo.width || 0) / 2)
-  const endMax = Math.ceil(((leanTo.legHeight || 0) + gableRise) / coverage)
-  const sideOptions = Array.from({ length: Math.max(0, sideMax) }, (_, idx) => idx + 1)
-  const endOptions = Array.from({ length: Math.max(0, endMax) }, (_, idx) => idx + 1)
-  return (
-    <div className="p-3 rounded border border-[rgba(255,255,255,0.08)]">
-      <div className="flex items-center justify-between mb-2">
-        <div className="font-semibold text-sm">{leanTo.position[0].toUpperCase()+leanTo.position.slice(1)} Lean-to</div>
-        <button type="button" className="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.08)]" onClick={onRemove}>Remove</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs">Width (ft)</label>
-          <Input value={leanTo.width ?? ''} onChange={(e: any) => update({ width: e.target.value === '' ? undefined : Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="block text-xs">Length (ft)</label>
-          <Input value={leanTo.length ?? ''} onChange={(e: any) => update({ length: e.target.value === '' ? undefined : Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="block text-xs">Height (Leg) (ft)</label>
-          <Input value={leanTo.legHeight ?? ''} onChange={(e: any) => update({ legHeight: e.target.value === '' ? undefined : Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="block text-xs">Pitch</label>
-          <Select value={leanTo.pitch ?? ''} onChange={(e: any) => update({ pitch: e.target.value === '' ? undefined : Number(e.target.value) })}>
-            <option value="">—</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
-          </Select>
-        </div>
-
-        <div>
-          <label className="block text-xs">Roof Style</label>
-          <Select value={roofStyle} onChange={(e: any) => {
-            const v = e.target.value
-            let orientation: 'vertical' | 'horizontal' | '' = ''
-            if (v === 'standard') orientation = 'horizontal'
-            if (v === 'a_frame_horizontal') orientation = 'horizontal'
-            if (v === 'a_frame_vertical') orientation = 'vertical'
-            update({ roofStyle: v, roofOrientation: orientation || leanTo.roofOrientation })
-          }}>
-            <option value="">—</option>
-            <option value="standard">Standard</option>
-            <option value="a_frame_horizontal">A Frame (Horizontal)</option>
-            <option value="a_frame_vertical">A Frame (Vertical)</option>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs">Spacing</label>
-          <Input value={leanTo.spacing ?? ''} onChange={(e: any) => update({ spacing: e.target.value === '' ? undefined : Number(e.target.value) })} />
-        </div>
-
-        <div>
-          <label className="block text-xs">Roof Color</label>
-          <Select value={leanTo.panelColorRoof || ''} onChange={(e: any) => update({ panelColorRoof: e.target.value })}>
-            <option value="">—</option>
-            <option value="Galvalume">Galvalume</option>
-            <option value="White">White</option>
-            <option value="Red">Red</option>
-            <option value="Blue">Blue</option>
-            <option value="Tan">Tan</option>
-            <option value="Green">Green</option>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs">Sides & Ends Color</label>
-          <Select value={leanTo.panelColorSide || ''} onChange={(e: any) => update({ panelColorSide: e.target.value, panelColorEnd: e.target.value })}>
-            <option value="">—</option>
-            <option value="Galvalume">Galvalume</option>
-            <option value="White">White</option>
-            <option value="Red">Red</option>
-            <option value="Blue">Blue</option>
-            <option value="Tan">Tan</option>
-            <option value="Green">Green</option>
-          </Select>
-        </div>
-
-        <div className="col-span-2">
-          <label className="block text-xs">Wall Enclosure</label>
-          <Select value={leanTo.wallOrientation || ''} onChange={(e: any) => {
-            const val = e.target.value
-            const cap = val ? (val[0].toUpperCase()+val.slice(1)) : ''
-            const patch: any = {
-              wallOrientation: val,
-              leftSide: cap,
-              rightSide: cap,
-              frontEnd: cap,
-              backEnd: cap
-            }
-            if (val === 'open' || val === 'vertical') {
-              patch.leftSideCourses = undefined
-              patch.rightSideCourses = undefined
-              patch.frontEndCourses = undefined
-              patch.backEndCourses = undefined
-            }
-            update(patch)
-          }}>
-            <option value="">—</option>
-            <option value="open">Open</option>
-            <option value="vertical">Vertical</option>
-            <option value="horizontal">Horizontal</option>
-          </Select>
-        </div>
-
-        {leanTo.wallOrientation === 'horizontal' && (
-          <>
-            <div>
-              <label className="block text-xs">Left Side Courses</label>
-              <Select value={leanTo.leftSideCourses ?? ''} onChange={(e: any) => update({ leftSideCourses: e.target.value === '' ? undefined : Math.max(1, Math.min(sideMax, Number(e.target.value))) })}>
-                <option value="">Full height (max)</option>
-                {sideOptions.map((v: number) => <option key={v} value={v}>{v}</option>)}
-              </Select>
-            </div>
-            <div>
-              <label className="block text-xs">Right Side Courses</label>
-              <Select value={leanTo.rightSideCourses ?? ''} onChange={(e: any) => update({ rightSideCourses: e.target.value === '' ? undefined : Math.max(1, Math.min(sideMax, Number(e.target.value))) })}>
-                <option value="">Full height (max)</option>
-                {sideOptions.map((v: number) => <option key={v} value={v}>{v}</option>)}
-              </Select>
-            </div>
-            <div>
-              <label className="block text-xs">Front End Courses</label>
-              <Select value={leanTo.frontEndCourses ?? ''} onChange={(e: any) => update({ frontEndCourses: e.target.value === '' ? undefined : Math.max(1, Math.min(endMax, Number(e.target.value))) })}>
-                <option value="">Full height (fully enclosed)</option>
-                {endOptions.map((v: number) => <option key={v} value={v}>{v}</option>)}
-              </Select>
-            </div>
-            <div>
-              <label className="block text-xs">Back End Courses</label>
-              <Select value={leanTo.backEndCourses ?? ''} onChange={(e: any) => update({ backEndCourses: e.target.value === '' ? undefined : Math.max(1, Math.min(endMax, Number(e.target.value))) })}>
-                <option value="">Full height (fully enclosed)</option>
-                {endOptions.map((v: number) => <option key={v} value={v}>{v}</option>)}
-              </Select>
-            </div>
-          </>
-        )}
-
-        <div>
-          <label className="block text-xs">Has Wainscot</label>
-          <label className="inline-flex items-center gap-2 text-xs mt-1">
-            <input type="checkbox" checked={leanTo.wallPanelMode === 'wainscot'} onChange={(e: any) => update({ wallPanelMode: e.target.checked ? 'wainscot' : 'full' })} />
-            <span>Enable</span>
-          </label>
-        </div>
-        {leanTo.wallPanelMode === 'wainscot' && (
-          <div>
-            <label className="block text-xs">Wainscot Color</label>
-            <Select value={leanTo.wainscotColor || ''} onChange={(e: any) => update({ wainscotColor: e.target.value })}>
-              <option value="">—</option>
-              <option value="Galvalume">Galvalume</option>
-              <option value="White">White</option>
-              <option value="Red">Red</option>
-              <option value="Blue">Blue</option>
-              <option value="Tan">Tan</option>
-              <option value="Green">Green</option>
-            </Select>
-          </div>
-        )}
-
-        <div className="col-span-2">
-          <label className="block text-xs">Extra Panels</label>
-          <ExtraPanelsEditor panels={leanTo.extraPanels || []} onChange={(list) => update({ extraPanels: list })} />
-        </div>
-        <div className="col-span-2">
-          <label className="block text-xs">Openings</label>
-          <OpeningsEditor openings={leanTo.openings || []} buildingWidth={leanTo.width || 0} onChange={(list) => update({ openings: list })} />
-        </div>
-      </div>
-    </div>
-  )
-}
+// Local component stubs removed; using shared components instead.

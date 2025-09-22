@@ -33,6 +33,48 @@ body {
   min-height: 100vh;
 }
 
+/* Light mode overrides via .light on <html> */
+html.light {
+  color-scheme: light;
+}
+html.light :root {
+  color: #213547;
+  background-color: #ffffff;
+}
+html.light body {
+  color: #111827; /* neutral-900 */
+  background: #ffffff;
+}
+html.light header {
+  background: #ffffff;
+  border-color: rgba(17,24,39,0.12);
+}
+html.light .card,
+html.light .panel,
+html.light .pane {
+  background: #ffffff;
+  border-color: rgba(17,24,39,0.12);
+}
+html.light .panel-header,
+html.light .pane-header {
+  background: rgba(0,0,0,0.03);
+  color: #111827;
+  border-bottom-color: rgba(17,24,39,0.12);
+}
+html.light .react-grid-placeholder {
+  background: rgba(100,108,255,0.06);
+  border-color: rgba(100,108,255,0.35);
+}
+html.light a { color: #2563eb; }
+html.light a:hover { color: #1d4ed8; }
+html.light button {
+  background-color: #f3f4f6; /* gray-100 */
+  color: #111827; /* gray-900 */
+  border-color: rgba(17,24,39,0.12);
+}
+html.light button:hover { border-color: #2563eb; }
+html.light .color-chip { border-color: rgba(0,0,0,0.15); }
+
 /* react-grid-layout helpers */
 .react-grid-layout {
   position: relative;

@@ -7,8 +7,16 @@ export default function ThemePreview() {
   })
 
   React.useEffect(() => {
-    if (light) document.documentElement.classList.add('light')
-    else document.documentElement.classList.remove('light')
+    const el = document.documentElement
+    if (light) {
+      el.classList.add('light')
+      el.classList.remove('dark')
+      el.classList.remove('theme-dark')
+    } else {
+      el.classList.remove('light')
+      el.classList.add('dark')
+      el.classList.add('theme-dark')
+    }
   }, [light])
 
   return (
@@ -57,6 +65,29 @@ export default function ThemePreview() {
               <tr><td>Leg</td><td>20</td><td>-</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <div className="card">
+          <h3 className="font-semibold mb-2">Tokens</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {[
+              ['bg', 'bg-[var(--bg)] text-[var(--fg)] border border-[var(--border)]'],
+              ['card', 'bg-[var(--card)] text-[var(--fg)] border border-[var(--border)]'],
+              ['card-2', 'bg-[var(--card-2)] text-[var(--fg)] border border-[var(--border)]'],
+              ['primary', 'bg-[var(--primary)] text-[var(--bg)]'],
+              ['primary-a10', 'bg-[var(--primary-a10)]'],
+              ['primary-a20', 'bg-[var(--primary-a20)]'],
+              ['primary-a30', 'bg-[var(--primary-a30)]'],
+              ['success-a20', 'bg-[var(--success-a20)]'],
+              ['warning-a20', 'bg-[var(--warning-a20)]'],
+              ['danger-a20', 'bg-[var(--danger-a20)]'],
+              ['info-a20', 'bg-[var(--info-a20)]'],
+            ].map(([name, cls]) => (
+              <div key={name as string} className={`rounded p-3 ${cls as string}`}>
+                <div className="opacity-80">{name as string}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>

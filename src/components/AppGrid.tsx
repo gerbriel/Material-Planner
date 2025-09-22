@@ -17,13 +17,29 @@ const ReactGridLayout = WidthProvider(RGL)
 
 function AppGridInner(props: any) {
   const initialTiles: any[] = props.initialTiles || []
-  const ignoreSaved = !!props.ignoreSaved
-  // Always call the hook with the expected signature. Choose the effective
-  // tiles based on the ignoreSaved flag so we don't load a saved aside when
-  // the app is rendering the Review (step 2) page.
-  const [savedTiles] = useLocalStorage('mbuilder:appGridOrder', initialTiles as any)
-  const tiles = ignoreSaved ? initialTiles : (Array.isArray(savedTiles) ? savedTiles : initialTiles)
+  const tiles = initialTiles
   const [tileSizes, setTileSizes] = useLocalStorage('mbuilder:tileSizes', {})
+  const effectiveTiles = Array.isArray(tiles) ? tiles.filter(Boolean) : []
+
+  function makeDefaultLayout(tilesArr: any[]): Layout[] {
+    // Place main at left, aside at right, lean-to tiles stacked under main
+    let underMainIndex = 0
+    let rightIndex = 0
+    return tilesArr.map((t: any) => {
+      if (t.id === 'main') return { i: 'main', x: 0, y: 0, w: 8, h: 18, minW: 4, minH: 10, resizeHandles: ['e','s','se'] } as Layout
+      if (t.id === 'aside') {
+        const y = rightIndex * 18
+        rightIndex += 1
+        return { i: 'aside', x: 8, y, w: 4, h: 18, minW: 3, minH: 10, resizeHandles: ['w','s','sw'] } as Layout
+      }
+      // lean-to and other auxiliary tiles go under main by default
+      const y = 18 + underMainIndex * 18
+      underMainIndex += 1
+      return { i: t.id, x: 0, y, w: 8, h: 18, minW: 3, minH: 10, resizeHandles: ['e','s','se'] } as Layout
+    })
+  }
+
+  const [savedLayout, setSavedLayout] = useLocalStorage<Layout[]>('mbuilder:gridLayout', makeDefaultLayout(effectiveTiles))
 
   const [layoutOrder, setLayoutOrder] = useAtom(layoutOrderAtom)
   const [stacked, setStacked] = useAtom(stackedAtom)
@@ -82,93 +98,91 @@ function AppGridInner(props: any) {
     e.preventDefault()
   }
 
-  const safeTiles = Array.isArray(tiles) ? tiles.filter(Boolean) : []
+  const currentTiles = Array.isArray(tiles) ? tiles.filter(Boolean) : []
 
-  // If we only have main/aside tiles, render them inside a small react-grid-layout
-  if (safeTiles.length <= 2) {
-    // build layout
-    const layout: Layout[] = safeTiles.map((t: any, idx: number) => {
-      if (t.id === 'main') return { i: 'main', x: 0, y: 0, w: 8, h: 18, minW: 4, minH: 10, resizeHandles: ['e','s','se'] }
-      return { i: t.id, x: 8, y: 0, w: 4, h: 18, minW: 3, minH: 10, resizeHandles: ['w','s','sw'] }
-    })
+  // Merge saved layout with current tiles: drop missing, add new with defaults
+  const layoutIds = new Set((savedLayout || []).map((l: any) => l.i))
+  const tileIds = new Set(currentTiles.map((t: any) => t.id))
+  let layout: Layout[] = (savedLayout || []).filter((l: any) => tileIds.has(l.i))
 
-    return (
-      <ReactGridLayout
-        className="layout app-grid-rgl"
-        layout={layout}
-        cols={12}
-        rowHeight={12}
-  width={960}
-  margin={[12,12]}
-  // remove vertical container padding so items don't get an extra top offset
-  containerPadding={[12,0]}
-  useCSSTransforms={false}
-  compactType={'horizontal'}
-        // visual and interaction props to mirror the GridPreview behavior
-        dragClass="rgl-dragging"
-        placeholderClassName="react-grid-placeholder"
-        draggableCancel=".panel-body"
-        draggableHandle=".panel-header"
-        isBounded
-        isDraggable
-        isResizable
-        onLayoutChange={(nextLayout: Layout[]) => {
-          try { localStorage.setItem('mbuilder:gridLayout', JSON.stringify(nextLayout)) } catch {}
-        }}
-        onResizeStop={(layoutArg: Layout[], oldItem: any, newItem: any) => {
-          try {
-            const cols = 12
-            const containerWidth = 960
-            const colWidth = containerWidth / cols
-            const rowHeightPx = 12
-            const sizesRaw = (() => { try { return JSON.parse(localStorage.getItem('mbuilder:tileSizes') || '{}') } catch { return {} } })()
-            sizesRaw[newItem.i] = { width: Math.round(newItem.w * colWidth), height: Math.round(newItem.h * rowHeightPx) }
-            localStorage.setItem('mbuilder:tileSizes', JSON.stringify(sizesRaw))
-            setTileSizes(sizesRaw)
-          } catch (e) {}
-        }}
-      >
-        {safeTiles.map((t: any) => {
-          const ts: any = tileSizes
-          const size = (ts && ts[t.id]) ? ts[t.id] : undefined
-          const bodyStyle = size ? { minHeight: Math.max(0, (size.height || 0) - 36) } : undefined
-          return (
-            <div key={t.id} className="grid-item-wrapper" role="listitem" tabIndex={0}>
-              <div className="panel">
-                <div className="panel-header">{t.label}</div>
-                <div className="panel-body" style={bodyStyle}>{t.content}</div>
-              </div>
-            </div>
-          )
-        })}
-      </ReactGridLayout>
-    )
+  // Add missing tiles to layout with default positions
+  const missingTiles = currentTiles.filter((t: any) => !layoutIds.has(t.id))
+  if (missingTiles.length > 0) {
+    // Base positions: stack lean-to tiles under main; aside on right under previous
+    const mainItem = (layout as any[]).find(l => l.i === 'main')
+    const mainBottom = mainItem ? (mainItem.y + mainItem.h) : 18
+    const rightMaxY = (layout as any[])
+      .filter(l => l.i === 'aside')
+      .reduce((max: number, it: any) => Math.max(max, (it.y || 0) + (it.h || 0)), 0)
+    let yUnderMain = mainBottom
+    let yRight = rightMaxY
+    for (const t of missingTiles) {
+      if (t.id === 'main') {
+        layout.push({ i: 'main', x: 0, y: 0, w: 8, h: 18, minW: 4, minH: 10, resizeHandles: ['e','s','se'] } as any)
+      } else if (t.id === 'aside') {
+        layout.push({ i: 'aside', x: 8, y: yRight, w: 4, h: 18, minW: 3, minH: 10, resizeHandles: ['w','s','sw'] } as any)
+        yRight += 18
+      } else if (String(t.id).startsWith('lean-')) {
+        layout.push({ i: t.id, x: 0, y: yUnderMain, w: 8, h: 18, minW: 3, minH: 10, resizeHandles: ['e','s','se'] } as any)
+        yUnderMain += 18
+      } else {
+        // default to right column for any unknown tile
+        layout.push({ i: t.id, x: 8, y: yRight, w: 4, h: 18, minW: 3, minH: 10, resizeHandles: ['w','s','sw'] } as any)
+        yRight += 18
+      }
+    }
   }
 
-  const children = safeTiles.map((t: any) => {
-    const label = React.createElement('div', { className: 'tile-label' }, t?.label ?? 'Untitled')
-    const content = React.createElement('div', { className: 'tile-content' }, t?.content ?? null)
-    const handle = React.createElement('div', {
-      role: 'separator',
-      'aria-orientation': 'horizontal',
-      onPointerDown: (e: any) => onSeparatorPointerDown(e, t.id),
-      onPointerMove: onSeparatorPointerMove,
-      onPointerUp: onSeparatorPointerUp,
-      className: 'tile-resize-handle',
-    })
-
-    return React.createElement(
-      'div',
-      { key: t.id, 'data-tile': true, role: 'listitem', tabIndex: 0, onKeyDown: (e: any) => handleKeyDown(e, t.id) },
-      label,
-      content,
-      handle
-    )
-  })
-
-  const live = React.createElement('div', { ref: liveRef, className: 'sr-only', 'aria-live': 'polite' })
-
-  return React.createElement('div', { className: 'app-grid', role: 'list' }, ...children, live)
+  return (
+    <ReactGridLayout
+      className="layout app-grid-rgl"
+      layout={layout}
+      cols={12}
+      rowHeight={12}
+      width={960}
+      margin={[12,12]}
+      containerPadding={[12,0]}
+      useCSSTransforms={false}
+      compactType={'horizontal'}
+      dragClass="rgl-dragging"
+      placeholderClassName="react-grid-placeholder"
+      draggableCancel=".panel-body"
+      draggableHandle=".panel-header"
+      isBounded
+      isDraggable
+      isResizable
+      onLayoutChange={(nextLayout: Layout[]) => {
+        setSavedLayout(nextLayout)
+        try { localStorage.setItem('mbuilder:gridLayout', JSON.stringify(nextLayout)) } catch {}
+      }}
+      onResizeStop={(layoutArg: Layout[], oldItem: any, newItem: any) => {
+        try {
+          const cols = 12
+          const containerWidth = 960
+          const colWidth = containerWidth / cols
+          const rowHeightPx = 12
+          const sizesRaw = (() => { try { return JSON.parse(localStorage.getItem('mbuilder:tileSizes') || '{}') } catch { return {} } })()
+          sizesRaw[newItem.i] = { width: Math.round(newItem.w * colWidth), height: Math.round(newItem.h * rowHeightPx) }
+          localStorage.setItem('mbuilder:tileSizes', JSON.stringify(sizesRaw))
+          setTileSizes(sizesRaw)
+        } catch (e) {}
+      }}
+    >
+      {currentTiles.map((t: any) => {
+        const ts: any = tileSizes
+        const size = (ts && ts[t.id]) ? ts[t.id] : undefined
+        const bodyStyle = size ? { minHeight: Math.max(0, (size.height || 0) - 36) } : undefined
+        return (
+          <div key={t.id} className="grid-item-wrapper" role="listitem" tabIndex={0}>
+            <div className="panel">
+              <div className="panel-header">{t.label}</div>
+              <div className="panel-body" style={bodyStyle}>{t.content}</div>
+            </div>
+          </div>
+        )}
+      )}
+    </ReactGridLayout>
+  )
 }
 
 const AppGrid = AppGridInner

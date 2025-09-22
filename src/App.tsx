@@ -17,10 +17,14 @@ import TwoPane from './components/TwoPane'
 import { stepAtom, jobAtom, rightColWidthAtom, layoutOrderAtom, asideHeightAtom, selectedWidgetAtom, stackedAtom, mainWidthAtom, mainHeightAtom } from './state/atoms'
 import { computeKeyboardEffects } from './lib/keyboard'
 import LiveSummary from './components/layout/LiveSummary'
+// Lean-to editors are rendered inline within StepBuilding
+import StepNav from './components/ui/StepNav'
 import AppGrid from './components/AppGrid'
 import StepBuilding from './components/forms/StepBuilding'
 import StepOpenings from './components/forms/StepOpenings'
 import StepReview from './components/forms/StepReview'
+import ThemeFab from './components/layout/ThemeFab'
+import { jobSchema } from './state/schema'
 
 const steps = [
   { id: 1, title: 'Building' },
@@ -32,8 +36,8 @@ export default function App() {
   if (path === '/theme-preview') return <ThemePreview />
   if (path === '/two-pane') return <TwoPane />
 
-  const [step] = useAtom(stepAtom)
-  const [job] = useAtom(jobAtom)
+  const [step, setStep] = useAtom(stepAtom)
+  const [job, setJob] = useAtom(jobAtom)
   const [rightWidth, setRightWidth] = useAtom(rightColWidthAtom)
   const [layoutOrder, setLayoutOrder] = useAtom(layoutOrderAtom)
   const [asideHeight, setAsideHeight] = useAtom(asideHeightAtom)
@@ -71,6 +75,48 @@ export default function App() {
       content: (
         <div className="relative">
           <LiveSummary job={job} />
+          {/* Step controls under Live Summary on page 1 */}
+          <div className="mt-4">
+            <StepNav
+              onNext={() => {
+                const result = jobSchema.safeParse(job)
+                if (!result.success) {
+                  // surface a basic notice; detailed inline errors remain in the form when focused
+                  // eslint-disable-next-line no-alert
+                  alert('Please complete required fields before continuing.')
+                  return
+                }
+                setStep(2)
+              }}
+              onBlank={() => setJob({ ...job, buildingType: '' })}
+              onReset={() => {
+                // eslint-disable-next-line no-alert
+                if (!window.confirm('Reset the job to blank values? This will clear the current job.')) return
+                setJob({
+                  buildingType: '',
+                  frameGauge: '14ga',
+                  panelGauge: '29ga',
+                  color: '',
+                  width: 0,
+                  length: 0,
+                  legHeight: 0,
+                  pitch: 2,
+                  spacing: 0,
+                  roofOrientation: 'vertical',
+                  wallOrientation: 'open',
+                  openings: [],
+                  trim: { closure: 'none', anchorType: 'bolt' },
+                  panelColorRoof: '',
+                  panelColorSide: '',
+                  panelColorEnd: '',
+                  wallPanelMode: 'full',
+                  leanToPresent: false,
+                  leanToCount: 0,
+                  wallStripCount: 4
+                } as any)
+              }}
+            />
+          </div>
         </div>
       )
     }
@@ -110,7 +156,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-dark text-fg-dark">
+    <div className="min-h-screen bg-bg text-fg">
       <Topbar />
       <JobAutosave />
 
@@ -140,6 +186,7 @@ export default function App() {
       </main>
 
       <div ref={(el) => announcerRef.current = el} className="sr-only" aria-live="polite" />
+      <ThemeFab />
     </div>
   )
 }
