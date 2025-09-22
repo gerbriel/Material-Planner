@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Diagnostic helper: logs script/module load failures and useful hints to console. -->
+    <script>
+      (function(){
+        console.log('[app-diagnostics] diagnostic helper active — reload to capture module load issues');
+        window.addEventListener('error', function(e){
+          try {
+            const t = e && (e.target || e.srcElement) || null;
+            if (t && t.tagName === 'SCRIPT') {
+              console.error('[app-diagnostics] script load error', {
+                message: e.message || null,
+                src: t.src || null,
+                type: t.type || null,
+                crossOrigin: t.crossOrigin || null
+              });
+            } else {
+              console.warn('[app-diagnostics] page error', { message: e.message || null, filename: e.filename || null });
+            }
+          } catch (err) {
+            console.error('[app-diagnostics] error handler failure', err);
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(ev){
+          console.warn('[app-diagnostics] unhandledrejection', ev && ev.reason ? ev.reason : ev);
+        });
+
+        console.log('[app-diagnostics] navigator.userAgent:', navigator.userAgent);
+        console.log('[app-diagnostics] If you see a MIME-type module error, try disabling browser extensions or open an Incognito/Private window to confirm whether an extension is injecting or blocking module requests.');
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

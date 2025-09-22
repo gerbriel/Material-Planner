@@ -1,0 +1,81 @@
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 960px;
+  margin: 12px auto;
+  margin-top: 72px; /* push grid down so tiles sit below the topbar */
+}
+
+@media (max-width: 640px) {
+  .app-grid { grid-template-columns: 1fr; }
+}
+
+.app-tile {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  outline: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.app-tile:focus, .app-tile.focused {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  border: 2px solid #3b82f6;
+}
+
+.app-tile.dragging {
+  cursor: grabbing;
+  transform: scale(1.02);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.16);
+  animation: jiggle 220ms infinite linear;
+}
+
+.app-tile.placeholder {
+  opacity: 0.5;
+  transform: translateY(2px);
+  border: 2px dashed rgba(0,0,0,0.08);
+}
+
+.tile-label { font-weight: 600; margin-bottom: 8px }
+
+.tile-content { font-size: 14px; color: #333 }
+
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; border: 0 }
+
+@keyframes jiggle {
+  0% { transform: scale(1.02) rotate(-0.2deg) }
+  50% { transform: scale(1.02) rotate(0.2deg) }
+  100% { transform: scale(1.02) rotate(-0.2deg) }
+}
+
+.tile-resize-handle {
+  width: 18px;
+  height: 18px;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 4px;
+  cursor: nwse-resize;
+}
+
+.app-tile { position: relative }
+
+.grid-item-wrapper { position: relative }
+.grid-item-wrapper .panel.dragging { box-shadow: 0 10px 30px rgba(0,0,0,0.25) }
+
+/* ensure RGL container is positioned relative so its absolutely-positioned
+  children (react-grid-item) are constrained to this container and don't drift
+  under the page header. .app-body is added around the main content in App.tsx */
+.app-body .app-grid, .app-grid-rgl {
+  position: relative;
+}
+
+/* z-index styling so that grid items sit below the header but the dragging
+  item can rise above other tiles while still respecting header stacking */
+.react-grid-item { z-index: 1 }
+.react-grid-item.react-draggable-dragging { z-index: 60 }

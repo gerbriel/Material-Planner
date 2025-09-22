@@ -1,0 +1,290 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  /* header height token used to offset sticky header and popovers */
+  --header-h: 64px;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* react-grid-layout helpers */
+.react-grid-layout {
+  position: relative;
+}
+.react-grid-item {
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.react-grid-item.cssTransforms {
+  transition: transform 180ms ease;
+}
+.react-grid-placeholder {
+  background: rgba(100,108,255,0.06);
+  border: 1px dashed rgba(100,108,255,0.25);
+  box-shadow: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.drag-handle {
+  cursor: grab;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.dragging-shadow {
+  box-shadow: 0 20px 40px rgba(0,0,0,0.45) !important;
+}
+.rgl-dragging {
+  /* reduce elevation of the dragged element so it doesn't visually cover neighbors too aggressively */
+  z-index: 5 !important;
+  transform: translate3d(0,0,0) !important;
+  transition: none !important;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.22) !important;
+}
+.react-grid-placeholder {
+  /* make the placeholder visually prominent and sit above the dragged shadow so
+     it clearly reserves space and prevents visual stacking */
+  background: linear-gradient(90deg, rgba(100,108,255,0.08), rgba(100,108,255,0.04));
+  border: 1px dashed rgba(100,108,255,0.35);
+  z-index: 10 !important;
+  box-shadow: inset 0 0 0 2px rgba(100,108,255,0.02);
+}
+
+/* smooth item transitions when layout changes (snapping) */
+.react-grid-item > * {
+  transition: transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 160ms ease;
+}
+.react-grid-placeholder {
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* ghost preview overlay shown while dragging widgets in the main layout */
+.widget-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 60;
+  width: 220px;
+  height: 140px;
+  border-radius: 8px;
+  background: rgba(99,102,241,0.12);
+  border: 1px dashed rgba(99,102,241,0.35);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.4);
+  transition: transform 220ms cubic-bezier(.2,.9,.2,1), opacity 140ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.85);
+  font-weight: 600;
+}
+
+.widget-ghost--left { transform: translateY(-12px) translateX(-12px) scale(1.02); }
+.widget-ghost--right { transform: translateY(-12px) translateX(12px) scale(1.02); }
+.widget-ghost--stack { transform: translateY(12px) scale(1.02); }
+
+/* animate the other widget when layout changes */
+.layout-animate {
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms ease;
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 18px 36px rgba(0,0,0,0.35) !important;
+}
+
+/* announcer for keyboard actions (visually hidden but accessible) */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Panel styling for react-grid-layout items */
+.react-grid-item { overflow: visible; z-index: 0 }
+.react-grid-item > .panel { position: relative; }
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  padding: 20px; /* add 20px padding around each tile */
+  box-sizing: border-box;
+}
+.panel-header {
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: move;
+  user-select: none;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.95);
+  background: rgba(0,0,0,0.06);
+}
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0; /* body inner padding handled by panel padding */
+}
+
+/* ensure header sits above panels to avoid overlap with floating draggable items */
+header {
+  position: relative;
+  z-index: 60;
+}
+.react-resizable-handle {
+  width: 18px;
+  height: 18px;
+  opacity: 0.9;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.12);
+  border-radius: 3px;
+}
+.react-resizable-handle-se,
+.react-resizable-handle-sw,
+.react-resizable-handle-e,
+.react-resizable-handle-w,
+.react-resizable-handle-s {
+  cursor: se-resize;
+}
+
+/* Visual dot inside the handle */
+.react-resizable-handle::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: rgba(255,255,255,0.9);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+/* Move edge handles slightly inward so they are visible */
+.react-resizable-handle-e { right: -8px; top: 50%; transform: translateY(-50%); }
+.react-resizable-handle-w { left: -8px; top: 50%; transform: translateY(-50%); }
+.react-resizable-handle-s { bottom: -8px; left: 50%; transform: translateX(-50%); }
+.react-resizable-handle-se { right: -8px; bottom: -8px; }
+.react-resizable-handle-sw { left: -8px; bottom: -8px; }
+
+/* TwoPane workspace styles */
+.workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--main-w, 62%) 8px 1fr;
+  align-items: start;
+  gap: 12px;
+  height: 100vh;
+  padding: 16px;
+}
+.pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: var(--pane-h, 100%);
+  min-height: 240px;
+  min-width: 240px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.pane-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  user-select: none;
+}
+.pane-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px }
+.splitter.v { width: 8px; cursor: col-resize; background: transparent; display: block }
+.resize-handle { position: absolute; background: transparent; border: none }
+.resize-handle.s { left: 50%; transform: translateX(-50%); bottom: 0; width: 40px; height: 8px; cursor: s-resize }
+.resize-handle.e { right: 0; top: 50%; transform: translateY(-50%); width: 8px; height: 40px; cursor: e-resize }
+.resize-handle.w { left: 0; top: 50%; transform: translateY(-50%); width: 8px; height: 40px; cursor: w-resize }
+.resize-handle.se, .resize-handle.sw { width: 12px; height: 12px; right: 8px; bottom: 8px; cursor: se-resize; background: rgba(255,255,255,0.06); border-radius: 3px }
+.resize-handle.sw { right: auto; left: 8px; cursor: sw-resize }
+.resize-handle:focus { outline: 3px solid rgba(100,108,255,0.2) }
+
+
+/* Handle visual polish */
+.resize-handle { display:flex; align-items:center; justify-content:center; color: rgba(255,255,255,0.8) }
+.resize-handle.s svg rect { fill: rgba(255,255,255,0.6) }
+.resize-handle:active, .splitter.v:active { transform: scale(0.995) }
+.resize-handle:hover, .splitter.v:hover { color: #646cff }
+.resize-handle.s { transition: background 140ms, transform 120ms }
+.splitter.v { display:flex; align-items:center; justify-content:center }
+.splitter .splitter-glyph { opacity: 0.7 }
+.splitter:focus { outline: 3px solid rgba(100,108,255,0.14); border-radius: 6px }
+
+/* increase hit area while keeping visuals small */
+.resize-handle.s { padding: 6px }
+.resize-handle.se, .resize-handle.sw { padding: 6px }
+
+
