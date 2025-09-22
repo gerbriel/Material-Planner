@@ -10,6 +10,40 @@ export type BuildingType =
 
 export type Gauge = '14ga' | '12ga' | '29ga' | '26ga'
 
+export interface LeanTo {
+  position: 'front' | 'back' | 'left' | 'right'
+  // core dims
+  width: number
+  length: number
+  legHeight: number
+  pitch?: 2 | 3 | 4
+  spacing?: number
+  roofStyle?: 'standard' | 'a_frame_horizontal' | 'a_frame_vertical'
+  roofOrientation?: 'vertical' | 'horizontal'
+  wallOrientation?: 'vertical' | 'horizontal' | 'open'
+  // colors
+  panelColorRoof?: string
+  panelColorSide?: string
+  panelColorEnd?: string
+  wainscotColor?: string
+  // horizontal panel settings
+  wallPanelMode?: 'full' | 'wainscot' | 'strips' | 'partial'
+  wallStripCount?: number
+  leftSide?: 'Open' | 'Vertical' | 'Horizontal'
+  rightSide?: 'Open' | 'Vertical' | 'Horizontal'
+  frontEnd?: 'Open' | 'Vertical' | 'Horizontal'
+  backEnd?: 'Open' | 'Vertical' | 'Horizontal'
+  leftSideCourses?: number
+  rightSideCourses?: number
+  frontEndCourses?: number
+  backEndCourses?: number
+  // extras
+  openings?: { type: 'walk' | 'window' | 'rollup'; widthFt?: number; side?: 'end' | 'side' }[]
+  extraPanels?: Array<{ lengthFt?: number; qty?: number; color?: string }>
+  foam?: { roof?: boolean; sides?: boolean; ends?: boolean }
+  insulation?: { roof?: boolean; sides?: boolean; ends?: boolean }
+}
+
 export interface JobState {
   id?: string
   workOrderId?: string
@@ -58,4 +92,6 @@ export interface JobState {
   extraBraces?: number
   hatChannels?: number
   foundation?: 'bare' | 'asphalt' | 'concrete'
+  // lean-tos (each acts like a mini building attached to a side or end)
+  leanTos?: LeanTo[]
 }

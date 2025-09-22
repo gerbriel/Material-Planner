@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --port 4173",
     "test": "vitest",
+    "deploy": "npm run build && git diff --quiet && git diff --cached --quiet && git commit --allow-empty -m 'chore: trigger deploy' && git push",
     "e2e": "playwright test"
   },
   "vitest": {

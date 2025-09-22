@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAtom } from 'jotai'
-import { layoutOrderAtom, selectedWidgetAtom, stackedAtom } from '../../state/atoms'
+import { selectedWidgetAtom } from '../../state/atoms'
 import { computeTrussCount, computeLegCount, estimateBraces } from '../../lib/calc/framing'
 import { roofPanelSheets } from '../../lib/calc/panels'
 import { computeHorizontalPanelSummary } from '../../lib/calc/horizontalPanels'
@@ -63,11 +63,7 @@ export default function LiveSummary({ job }: { job: any }) {
   const backTotal = backDisplay
   const endTotal = frontDisplay + backDisplay
 
-  // drag-to-swap/stack support: header acts as grab handle for moving the aside
-  const dragging = React.useRef<{ startX: number | null; startY: number | null }>({ startX: null, startY: null })
-  const [, setLayoutOrder] = useAtom(layoutOrderAtom)
   const [, setSelectedWidget] = useAtom(selectedWidgetAtom)
-  const [stacked, setStacked] = useAtom(stackedAtom)
 
   function onMouseEnter() {
     setSelectedWidget('aside')
@@ -77,87 +73,11 @@ export default function LiveSummary({ job }: { job: any }) {
     setSelectedWidget(null)
   }
 
-  function onHandleKeyDown(e: React.KeyboardEvent) {
-    // ignore key handling when focus is inside a resizer (defensive)
-    const target = e.target as HTMLElement | null
-    let node: any = target
-    while (node) {
-      if (node.getAttribute && node.getAttribute('data-resizer') === 'true') return
-      node = node.parentNode
-    }
-
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      const nextStacked = !stacked
-      try { setStacked(nextStacked); localStorage.setItem('mbuilder:stacked', String(nextStacked)) } catch (err) {}
-      return
-    }
-    if (e.key === 'ArrowLeft') {
-      try { setLayoutOrder('main-left'); localStorage.setItem('mbuilder:layoutOrder', 'main-left') } catch (err) {}
-      return
-    }
-    if (e.key === 'ArrowRight') {
-      try { setLayoutOrder('main-right'); localStorage.setItem('mbuilder:layoutOrder', 'main-right') } catch (err) {}
-      return
-    }
-    if (e.key === 'ArrowUp') {
-      try { setStacked(false); localStorage.setItem('mbuilder:stacked', 'false') } catch (err) {}
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      try { setStacked(true); localStorage.setItem('mbuilder:stacked', 'true') } catch (err) {}
-      return
-    }
-  }
-
-  function onPointerDown(e: React.PointerEvent) {
-    // ignore pointer interactions that come from a resizer handle
-    let node: any = e.target
-    while (node) {
-      if (node.getAttribute && node.getAttribute('data-resizer') === 'true') return
-      node = node.parentNode
-    }
-    (e.currentTarget as Element).setPointerCapture(e.pointerId)
-    dragging.current.startX = e.clientX
-    dragging.current.startY = e.clientY
-    setSelectedWidget('aside')
-  }
-
-  function onPointerUp(e: React.PointerEvent) {
-    const startX = dragging.current.startX
-    const startY = dragging.current.startY
-    dragging.current.startX = null
-    dragging.current.startY = null
-    if (startX == null || startY == null) return
-    const dx = e.clientX - startX
-    const dy = e.clientY - startY
-    // horizontal drag switches left/right
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-      const next = dx > 0 ? 'main-left' : 'main-right'
-      try { setLayoutOrder(next); localStorage.setItem('mbuilder:layoutOrder', next) } catch (err) {}
-    }
-    // vertical drag switches stacked mode if over threshold
-    if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
-      const nextStacked = !stacked
-      try { setStacked(nextStacked); localStorage.setItem('mbuilder:stacked', String(nextStacked)) } catch (err) {}
-    }
-  }
+  // Drag/keyboard swap handle removed per request
 
   return (
     <div className="card relative" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Drag to swap main and aside layout"
-        className="absolute -left-4 top-4 w-8 h-8 flex items-center justify-center"
-        style={{ cursor: 'grab' }}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onKeyDown={onHandleKeyDown}
-        title="Drag to swap main and aside layout"
-      >
-        <div style={{ width:18, height:18, borderRadius:4, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.04)' }} />
-      </div>
+      {/* drag handle removed */}
       <h3 className="font-semibold mb-2">Live Summary</h3>
       <div className="text-sm text-muted-500">{job.buildingType} — {job.width}ft × {job.length}ft × {job.legHeight}ft</div>
       <div className="mt-3 text-sm">
@@ -257,7 +177,57 @@ export default function LiveSummary({ job }: { job: any }) {
         { (job.openings || []).length > 0 && (
           <div className="mt-2">Openings: Headers {openings.headerLF} ft, L-Brackets {openings.lBrackets}, Blocking {openings.blocking}</div>
         )}
-        {job.leanToPresent && <div className="mt-2">Lean-tos: {job.leanToCount || 0}</div>}
+        {Array.isArray(job.leanTos) && job.leanTos.length > 0 && (
+          <div className="mt-3">
+            <div className="font-semibold">Lean-tos</div>
+            <div className="space-y-2 mt-1 text-xs">
+              {job.leanTos.map((lt: any, idx: number) => {
+                const label = (lt.position || '').charAt(0).toUpperCase() + (lt.position || '').slice(1)
+                const roof = roofPanelSheets(lt.width, lt.length, lt.roofOrientation)
+                const hsum = computeHorizontalPanelSummary({ lengthFt: lt.length, widthFt: lt.width, legHeightFt: lt.legHeight, panelCoverageFt: job.panelCoverageFt, roofPitchX12: lt.pitch ?? 0 })
+                const sideCourses = lt.wallOrientation === 'horizontal' ? (lt.leftSideCourses ?? hsum.sideCourses) : 0
+                const endCourses = lt.wallOrientation === 'horizontal' ? (lt.frontEndCourses ?? hsum.endCourses) : 0
+                const ridgePieces = (typeof lt.length === 'number' && lt.length > 0) ? Math.ceil(((lt.length || 0) + 1) / 11) : 0
+                const trimsLt = breakdownTrims({ eave: (lt.width || 0) * 2, rake: (lt.length || 0) * 2, gable: 0, corner: 4 })
+                const findLt = (type: string) => trimsLt.items.find((it: any) => it.type === type)
+                const eaveLt = findLt('eave')?.roundedLF ?? 0
+                const rakeLt = findLt('rake')?.roundedLF ?? 0
+                const gableLt = findLt('gable')?.roundedLF ?? 0
+                const cornerLt = findLt('corner')?.roundedLF ?? 0
+                return (
+                  <div key={idx} className="border-t border-[rgba(255,255,255,0.08)] pt-2">
+                    <div className="font-medium">{label} — {lt.width}×{lt.length}×{lt.legHeight}</div>
+                    <div>Roof: {roof.totalSheets} @ {formatFeetToFtIn(roof.panelLen)} <ColorChip color={lt.panelColorRoof} /></div>
+                    {lt.wallOrientation === 'horizontal' && (
+                      <div>Walls: Sides {sideCourses}, Ends {endCourses} <ColorChip color={lt.panelColorSide} /></div>
+                    )}
+                    <div className="mt-1">Trim (11' pieces):</div>
+                    <div className="text-[11px] ml-2">
+                      <div className="flex items-center gap-2">Eave: {Math.ceil(eaveLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
+                      <div className="flex items-center gap-2">Rake: {Math.ceil(rakeLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
+                      <div className="flex items-center gap-2">Gable: {Math.ceil(gableLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
+                      <div className="flex items-center gap-2">Corner: {Math.ceil(cornerLt / 11)} pcs <ColorChip color={job.trim?.color} /></div>
+                      <div className="flex items-center gap-2">Ridgecap: {ridgePieces} pcs <span className="text-[10px] text-muted-500">(roof color)</span> <ColorChip color={lt.panelColorRoof} /></div>
+                    </div>
+                    {Array.isArray(lt.extraPanels) && lt.extraPanels.length > 0 && (
+                      <div className="mt-1">
+                        <div className="font-medium">Extra Panels:</div>
+                        <div className="space-y-0.5">
+                          {lt.extraPanels.map((p: any, j: number) => {
+                            const qty = Number(p?.qty || 0)
+                            const len = Number(p?.lengthFt || 0)
+                            if (!qty || !len) return null
+                            return <div key={j}>{qty} @ {formatFeetToFtIn(len)}{p?.color ? ` — ${p.color}` : ''}</div>
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
         {panels.exceeds && <div className="text-yellow-400 mt-2">Warning: panel length {formatFeetToFtIn(panels.panelLen)} exceeds 31' shipping limit</div>}
       </div>
     </div>

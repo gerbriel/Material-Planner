@@ -1,4 +1,28 @@
-import { JobState } from '../types/domain'
+import { JobState, LeanTo } from '../types/domain'
+
+export const makeDefaultLeanTo = (position: LeanTo['position']): LeanTo => ({
+  position,
+  width: 12,
+  length: 20,
+  legHeight: 8,
+  pitch: 2,
+  spacing: 5,
+  roofStyle: 'a_frame_horizontal',
+  roofOrientation: 'horizontal',
+  wallOrientation: 'open',
+  panelColorRoof: 'Galvalume',
+  panelColorSide: 'Galvalume',
+  panelColorEnd: 'Galvalume',
+  wainscotColor: '',
+  wallPanelMode: 'full',
+  wallStripCount: 4,
+  leftSide: 'Horizontal',
+  rightSide: 'Horizontal',
+  frontEnd: 'Horizontal',
+  backEnd: 'Horizontal',
+  openings: [],
+  extraPanels: []
+})
 
 export const DEFAULT_JOB: JobState = {
   buildingType: 'garage',
@@ -37,4 +61,5 @@ export const DEFAULT_JOB: JobState = {
   rightSideCourses: undefined,
   frontEndCourses: undefined,
   backEndCourses: undefined
+  ,leanTos: []
 }

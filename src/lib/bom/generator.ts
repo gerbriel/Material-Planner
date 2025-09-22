@@ -148,5 +148,116 @@ export function buildSimpleBom(job: any) {
       }
     }
   }
+  // Lean-tos: append BOM per attachment
+  if (Array.isArray(job.leanTos) && job.leanTos.length > 0) {
+    for (const lt of job.leanTos) {
+      const scope = { ...job, ...lt }
+      const posLabel = (lt.position || '').charAt(0).toUpperCase() + (lt.position || '').slice(1)
+      const t = computeTrussCount(scope.length, scope.spacing)
+      const l = computeLegCount(t)
+      const roof = roofPanelSheets(scope.width, scope.length, scope.roofOrientation)
+      const trimsLt = breakdownTrims({ eave: scope.width * 2, rake: scope.length * 2, gable: 0, corner: 4 })
+      const anchorsLt = countAnchorsDetailed(l, scope.foundation || 'bare', scope.frameGauge, scope.width)
+      const openingsLt = computeOpeningReinforcement(scope.openings || [], scope.width)
+
+      bom.push({ category: 'Framing', item: `${posLabel} Truss`, description: 'Lean-to steel truss', gauge: scope.frameGauge, qty: t, unit: 'ea' })
+      bom.push({ category: 'Framing', item: `${posLabel} Leg`, description: 'Lean-to support leg', gauge: scope.frameGauge, qty: l, unit: 'ea' })
+      bom.push({ category: 'Roof', item: `${posLabel} Roof Panel`, description: "3' width panel (roof)", gauge: scope.panelGauge, qty: roof.totalSheets, unit: 'sheet', length: roof.panelLen, panelColor: scope.panelColorRoof || '' })
+
+      const enforceVerticalLt = scope.width > 30
+      const waLt = computeWallsAggregate({
+        lengthFt: scope.length || 0,
+        widthFt: scope.width || 0,
+        legHeightFt: scope.legHeight || 0,
+        panelCoverageFt: scope.panelCoverageFt || 3,
+        roofPitchX12: scope.pitch || 0,
+        leftSide: (scope.leftSide as any) || (enforceVerticalLt ? 'Vertical' : (scope.wallOrientation ? (scope.wallOrientation[0].toUpperCase() + scope.wallOrientation.slice(1)) : 'Open')),
+        rightSide: (scope.rightSide as any) || (enforceVerticalLt ? 'Vertical' : (scope.wallOrientation ? (scope.wallOrientation[0].toUpperCase() + scope.wallOrientation.slice(1)) : 'Open')),
+        frontEnd: (scope.frontEnd as any) || (enforceVerticalLt ? 'Vertical' : (scope.wallOrientation ? (scope.wallOrientation[0].toUpperCase() + scope.wallOrientation.slice(1)) : 'Open')),
+        backEnd: (scope.backEnd as any) || (enforceVerticalLt ? 'Vertical' : (scope.wallOrientation ? (scope.wallOrientation[0].toUpperCase() + scope.wallOrientation.slice(1)) : 'Open')),
+        leftSideCourses: scope.leftSideCourses,
+        rightSideCourses: scope.rightSideCourses,
+        frontEndCourses: scope.frontEndCourses,
+        backEndCourses: scope.backEndCourses,
+      })
+      const spacingLenLt = scope.spacing || 5
+      const groupedLt = new Map<any, any>()
+      for (const r of waLt.rows) {
+        const contributors = r.contributors || []
+        const isSide = contributors.some((c: string) => c === 'left' || c === 'right')
+        const isEnd = contributors.some((c: string) => c === 'front' || c === 'back')
+        if (!isSide && !isEnd) continue
+        const vertical = (r.label || '').includes('(V)')
+        const pieceLengthFt = vertical ? (r.runFt || spacingLenLt) : spacingLenLt
+        const sideOrEnd: 'side' | 'end' = isSide ? 'side' : 'end'
+        const color = sideOrEnd === 'side' ? (scope.panelColorSide || '') : (scope.panelColorEnd || scope.panelColorSide || '')
+        const key = `${sideOrEnd}|${pieceLengthFt}`
+        const cur = groupedLt.get(key)
+        if (cur) cur.qty += r.qty
+        else groupedLt.set(key, { qty: r.qty, sideOrEnd, pieceLengthFt, color })
+      }
+      let wSide = 0, wEnd = 0
+      if (scope.wallPanelMode === 'wainscot' && scope.wallOrientation === 'horizontal') {
+        const panelCoverageFt = scope.panelCoverageFt || 3
+        const summary = computeHorizontalPanelSummary({ lengthFt: scope.length || 0, widthFt: scope.width || 0, legHeightFt: scope.legHeight || 0, panelCoverageFt, roofPitchX12: scope.pitch || 0 })
+        const leftCourses = scope.leftSideCourses ?? summary.sideCourses
+        const rightCourses = scope.rightSideCourses ?? summary.sideCourses
+        const frontCourses = scope.frontEndCourses ?? summary.endCourses
+        const backCourses = scope.backEndCourses ?? summary.endCourses
+        const leftFull = leftCourses >= (summary.sideCourses || 0)
+        const rightFull = rightCourses >= (summary.sideCourses || 0)
+        const frontFull = frontCourses >= (summary.endCourses || 0)
+        const backFull = backCourses >= (summary.endCourses || 0)
+        const sheetsPerSideCourse = Math.ceil((scope.length || 0) / panelCoverageFt)
+        const sheetsPerEndCourse = Math.ceil((scope.width || 0) / panelCoverageFt)
+        if (leftFull) wSide += sheetsPerSideCourse
+        if (rightFull) wSide += sheetsPerSideCourse
+        if (frontFull) wEnd += sheetsPerEndCourse
+        if (backFull) wEnd += sheetsPerEndCourse
+        const keySide = `side|${spacingLenLt}`
+        const keyEnd = `end|${spacingLenLt}`
+        const gSide = groupedLt.get(keySide)
+        if (gSide) gSide.qty = Math.max(0, gSide.qty - wSide)
+        const gEnd = groupedLt.get(keyEnd)
+        if (gEnd) gEnd.qty = Math.max(0, gEnd.qty - wEnd)
+      }
+      for (const g of groupedLt.values()) {
+        const label = g.sideOrEnd === 'side' ? `${posLabel} Side Panels` : `${posLabel} End Panels`
+        bom.push({ category: 'Walls', item: label, description: g.sideOrEnd === 'side' ? "3' width wall panel (side)" : "3' width wall panel (end)", gauge: scope.panelGauge, qty: g.qty, unit: 'sheet', length: g.pieceLengthFt, pieceLengthFt: g.pieceLengthFt, sideOrEnd: g.sideOrEnd, panelColor: g.color })
+      }
+      if ((wSide + wEnd) > 0) {
+        if (wSide > 0) bom.push({ category: 'Walls', item: `${posLabel} Wainscot (Sides)`, description: "3' width wainscot panel (side)", gauge: scope.panelGauge, qty: wSide, unit: 'sheet', length: spacingLenLt, pieceLengthFt: spacingLenLt, sideOrEnd: 'side', panelColor: scope.wainscotColor || '' })
+        if (wEnd > 0) bom.push({ category: 'Walls', item: `${posLabel} Wainscot (Ends)`, description: "3' width wainscot panel (end)", gauge: scope.panelGauge, qty: wEnd, unit: 'sheet', length: spacingLenLt, pieceLengthFt: spacingLenLt, sideOrEnd: 'end', panelColor: scope.wainscotColor || '' })
+      }
+      for (const tItem of trimsLt.items) {
+        const label = tItem.type.charAt(0).toUpperCase() + tItem.type.slice(1)
+        const pieces = Math.ceil((tItem.roundedLF || 0) / 11)
+        bom.push({ category: 'Trim', item: `${posLabel} ${label}`, description: `${label} trim (11ft pieces)`, qty: pieces, unit: 'pcs', length: 11, panelColor: job.trim?.color || '', notes: `lf:${tItem.roundedLF}` })
+      }
+      if (typeof scope.length === 'number' && scope.length > 0) {
+        const ridgeLf = (scope.length || 0) + 1
+        const ridgePieces = Math.ceil(ridgeLf / 11)
+        bom.push({ category: 'Trim', item: `${posLabel} Ridgecap`, description: 'Ridge cap (11ft pieces)', qty: ridgePieces, unit: 'pcs', length: 11, panelColor: scope.panelColorRoof || '', notes: `lf:${ridgeLf}` })
+      }
+      if ((scope.openings || []).length > 0) {
+        bom.push({ category: 'Openings', item: `${posLabel} Headers (LF)`, description: 'Opening headers', qty: openingsLt.headerLF, unit: 'lf' })
+        bom.push({ category: 'Openings', item: `${posLabel} L-Brackets`, description: 'L brackets for openings', qty: openingsLt.lBrackets, unit: 'ea' })
+        bom.push({ category: 'Openings', item: `${posLabel} Blocking`, description: 'Blocking pieces', qty: openingsLt.blocking, unit: 'ea' })
+      }
+      if (Array.isArray(scope.extraPanels)) {
+        for (const p of scope.extraPanels) {
+          const qty = Number(p?.qty || 0)
+          const lengthFt = Number(p?.lengthFt || 0)
+          if (qty > 0 && lengthFt > 0) {
+            bom.push({ category: 'Panels', item: `${posLabel} Panels (Extra)`, description: 'Extra panels', qty, unit: 'sheet', length: lengthFt, pieceLengthFt: lengthFt, panelColor: p?.color || '' })
+          }
+        }
+      }
+      // anchors and screws
+      bom.push({ category: 'Hardware', item: `${posLabel} ${anchorsLt.type}`, description: 'Anchors/fasteners', qty: anchorsLt.qty, unit: anchorsLt.type === 'asphalt_kit' ? 'kit' : 'ea' })
+      const screwsLt = countRoofScrewsByGauge(roof.totalSheets, scope.panelGauge)
+      bom.push({ category: 'Hardware', item: `${posLabel} Roof Screws`, description: 'Assorted screws', qty: screwsLt.total, unit: 'ea', notes: `bags:${screwsLt.bags}` })
+    }
+  }
   return bom
 }
